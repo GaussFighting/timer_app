@@ -1,0 +1,3 @@
+([('main',
+   '/Users/krzysztofkowerczyk/IT/Python Udemy/timer_app/dist/main',
+   'EXECUTABLE')],)

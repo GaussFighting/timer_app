@@ -1,0 +1,9 @@
+Imię i nazwisko: a b
+Process 1: 0:00:00
+Process 2: 0:00:00
+Process 3: 0:00:00
+Process 4: 0:00:00
+Process 5: 0:00:00
+Process 6: 0:00:00
+Process 7: 0:00:00
+Process 8: 0:00:00
