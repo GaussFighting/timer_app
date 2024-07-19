@@ -1,11 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+block_cipher = None
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('config.txt', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -19,9 +20,8 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='main',
     debug=False,
     bootloader_ignore_signals=False,
@@ -35,11 +35,16 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['timer.ico'],
+    icon='timer.ico',  
 )
-app = BUNDLE(
+
+coll = COLLECT(
     exe,
-    name='main.app',
-    icon='timer.ico',
-    bundle_identifier=None,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='main',
 )
