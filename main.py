@@ -5,6 +5,7 @@ from tkinter import messagebox
 from datetime import datetime, timedelta
 import logging
 import csv
+import mysql.connector
 
 # Konfiguracja logowania
 log_file = os.path.join(os.path.expanduser("~"), "multi_timer_log.txt")
@@ -13,33 +14,89 @@ logging.basicConfig(filename=log_file, level=logging.DEBUG, format='%(asctime)s 
 # Ustawienie daty wygaśnięcia na 31 sierpnia 2024
 expiry = datetime(2024, 8, 31)
 
+# Dane do dazybanych
+db_config = {
+    'host': 'sql12.lh.pl',
+    'user': '47odh_kower',
+    'password': '47odh_kower',
+    'database': 'Jojo123!'
+}
+
 # Funkcja sprawdzająca datę wygaśnięcia
 def is_trial_expired():
     current_date = datetime.now()
     return current_date > expiry
 
-# Funkcja do wczytywania konfiguracji z pliku config.txt
-def load_config():
-    if getattr(sys, 'frozen', False):
-        config_path = os.path.join(sys._MEIPASS, 'config.txt')
-    else:
-        config_path = os.path.join(os.path.dirname(__file__), 'config.txt')
-        
-    if not os.path.exists(config_path):
-        messagebox.showerror("Błąd", "Plik konfiguracyjny 'config.txt' nie został znaleziony.")
+# polaczenie z bazadanych
+def connect_to_database():
+    try:
+        connection = mysql.connector.connect(**db_config)
+        logging.debug(f"Połączono z bazą danych jako {db_config['user']}@{db_config['host']}")
+        return connection
+    except mysql.connector.Error as err:
+        logging.error(f"Błąd podczas łączenia z bazą danych: {err}")
+        messagebox.showerror("Błąd", f"Błąd podczas łączenia z bazą danych: {err}")
+        return None
+
+# Funckja do wczytywania konfiguracji z db
+def load_config_from_db():
+    connection = connect_to_database()
+    if not connection:
         return None, None
 
-    with open(config_path, 'r', encoding='utf-8') as file:
-        lines = file.readlines()
+    cursor = connection.cursor()
+    cursor.execute("SELECT name, process_name FROM config")
+    rows = cursor.fetchall()
 
-    if len(lines) < 2:  # Sprawdzenie czy są co najmniej 1 linia dla imienia i nazwiska i co najmniej jedna dla nazw procesów
-        messagebox.showerror("Błąd", "Plik konfiguracyjny 'config.txt' jest niekompletny.")
+    if len(rows) < 1:
+        messagebox.showerror("Błąd", "Tabela 'config' w bazie danych jest pusta.")
+        connection.close()
         return None, None
 
-    name = lines[0].strip()
-    process_names = [line.strip() for line in lines[1:] if line.strip()]  # Wczytanie nazw procesów i usunięcie pustych linii
+    name = rows[0][0]
+    process_names = [row[1] for row in rows]
 
+    connection.close()
     return name, process_names
+
+# funkcja do zapisywania raportu do bazy danych
+def save_report_to_db(name, report_lines):
+    connection = connect_to_database()
+    if not connection:
+        return
+
+    cursor = connection.cursor()
+    cursor.execute("CREATE TABLE IF NOT EXISTS reports (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255), process_name VARCHAR(255), elapsed_time TIME)")
+    
+    for process_name, elapsed_time in report_lines[1:]:
+        cursor.execute("INSERT INTO reports (name, process_name, elapsed_time) VALUES (%s, %s, %s)",
+                       (name, process_name, elapsed_time))
+
+    connection.commit()
+    connection.close()
+
+# Funkcja do wczytywania konfiguracji z pliku config.txt
+# def load_config():
+#     if getattr(sys, 'frozen', False):
+#         config_path = os.path.join(sys._MEIPASS, 'config.txt')
+#     else:
+#         config_path = os.path.join(os.path.dirname(__file__), 'config.txt')
+        
+#     if not os.path.exists(config_path):
+#         messagebox.showerror("Błąd", "Plik konfiguracyjny 'config.txt' nie został znaleziony.")
+#         return None, None
+
+#     with open(config_path, 'r', encoding='utf-8') as file:
+#         lines = file.readlines()
+
+#     if len(lines) < 2:  # Sprawdzenie czy są co najmniej 1 linia dla imienia i nazwiska i co najmniej jedna dla nazw procesów
+#         messagebox.showerror("Błąd", "Plik konfiguracyjny 'config.txt' jest niekompletny.")
+#         return None, None
+
+#     name = lines[0].strip()
+#     process_names = [line.strip() for line in lines[1:] if line.strip()]  # Wczytanie nazw procesów i usunięcie pustych linii
+
+#     return name, process_names
 
 # Przykład użycia funkcji
 if is_trial_expired():
@@ -153,22 +210,22 @@ else:
                 elapsed_time = str(timer['elapsed_time']).split(".")[0]
                 report_lines.append([process_name, elapsed_time])
 
-            current_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-            report_file_name = f"raport-{current_time}.csv"
-            report_file_path = os.path.join(os.path.expanduser("~"), report_file_name)
+            save_report_to_db(self.name, report_lines)
+            messagebox.showinfo("Raport", "Raport został zapisany do bazy danych.")
+            logging.info(f"Raport zapisany do bazy danych.")
 
-            try:
-                with open(report_file_path, "w", newline='', encoding='utf-8') as report_file:
-                    writer = csv.writer(report_file)
-                    writer.writerows(report_lines)
-                logging.info(f"Raport zapisany w: {report_file_path}")
-            except Exception as e:
-                logging.error(f"Błąd podczas zapisywania raportu: {e}")
-                messagebox.showerror("Błąd", f"Błąd podczas zapisywania raportu: {e}")
+            # try:
+            #     with open(report_file_path, "w", newline='', encoding='utf-8') as report_file:
+            #         writer = csv.writer(report_file)
+            #         writer.writerows(report_lines)
+            #     logging.info(f"Raport zapisany w: {report_file_path}")
+            # except Exception as e:
+            #     logging.error(f"Błąd podczas zapisywania raportu: {e}")
+            #     messagebox.showerror("Błąd", f"Błąd podczas zapisywania raportu: {e}")
 
     if __name__ == "__main__":
         root = tk.Tk()
-        name, process_names = load_config()
+        name, process_names = load_config_from_db()
         if name and process_names:
             app = TimerApp(root, name, process_names)
             root.mainloop()
